@@ -51,7 +51,7 @@ check_cpu
 
 # ─── Constants ───────────────────────────────────────────────────────────────
 XUIDB="/etc/x-ui/x-ui.db"
-GITHUB_RAW="https://raw.githubusercontent.com/mozaroc/3x-ui-pro/main"
+GITHUB_RAW="${GITHUB_RAW:-https://raw.githubusercontent.com/ranranra9/3x-ui-pro/security-hardening}"
 FAKE_SITE_COUNT=50
 
 # ─── Default argument values ─────────────────────────────────────────────────
@@ -272,6 +272,54 @@ get_ssl_certs() {
 # ─────────────────────────────────────────────────────────────────────────────
 # CONFIGURE NGINX
 # ─────────────────────────────────────────────────────────────────────────────
+# Install the synced WS/gRPC allowlist before generating Nginx configs.
+install_forward_sync() {
+    local tmp
+    tmp=$(mktemp)
+    if ! curl -fsSL --retry 3 "$GITHUB_RAW/assets/xray-forward-sync.sh" -o "$tmp"; then
+        rm -f "$tmp"
+        msg_err "Failed to download Xray forward allowlist helper."
+        exit 1
+    fi
+    if ! bash -n "$tmp" || ! install -m 0755 "$tmp" /usr/local/sbin/3x-ui-pro-sync-inbounds; then
+        rm -f "$tmp"
+        msg_err "Failed to install Xray forward allowlist helper."
+        exit 1
+    fi
+    rm -f "$tmp"
+    /usr/local/sbin/3x-ui-pro-sync-inbounds --prepare || {
+        msg_err "Cannot create Xray forwarding allowlist."
+        exit 1
+    }
+}
+
+setup_forward_sync_timer() {
+    cat > /etc/systemd/system/3x-ui-pro-forward-sync.service <<'UNIT'
+[Unit]
+Description=Synchronize safe Nginx Xray inbound forwarding ports
+After=nginx.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/3x-ui-pro-sync-inbounds --sync
+UNIT
+    cat > /etc/systemd/system/3x-ui-pro-forward-sync.timer <<'UNIT'
+[Unit]
+Description=Refresh enabled Xray WS/gRPC forwarding ports
+
+[Timer]
+OnBootSec=90s
+OnUnitInactiveSec=60s
+AccuracySec=15s
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+UNIT
+    systemctl daemon-reload || exit 1
+    systemctl enable --now 3x-ui-pro-forward-sync.timer || exit 1
+}
+
 configure_nginx() {
     mkdir -p /etc/nginx/stream-enabled /etc/nginx/snippets
 
@@ -393,6 +441,8 @@ EOF
     #Xray generic proxy (WS / gRPC by port+path)
     location ~ ^/(?<fwdport>\d+)/(?<fwdpath>.*)\$ {
         if (\$hack = 1) { return 404; }
+        # Restrict target to enabled WS/gRPC inbound ports in x-ui.db.
+        if (\$xray_forward_allowed = 0) { return 404; }
         client_max_body_size 0;
         client_body_timeout 1d;
         grpc_read_timeout 1d;
@@ -429,6 +479,11 @@ EOF
     # always-loaded file — never inside a single vhost, or the other vhost's
     # include would reference an undefined var ("unknown ... variable").
     cat > /etc/nginx/sites-available/00-maps.conf <<EOF
+# Fail closed: approved ports come exclusively from enabled Xray WS/gRPC inbounds.
+map \$fwdport \$xray_forward_allowed {
+    default 0;
+    include /etc/nginx/snippets/xray-forward-ports.map;
+}
 # Detect Clash/Mihomo clients by User-Agent
 map \$http_user_agent \$is_clash_ua {
     ~*(clash|clashx|clashn|mihomo|stash|surfboard)  1;
@@ -1251,14 +1306,17 @@ main() {
         install_panel
     fi
 
+    install_forward_sync
     configure_nginx
     configure_xui_db
+    /usr/local/sbin/3x-ui-pro-sync-inbounds --sync || exit 1
     install_clash_sub
     install_fake_site
     install_diagnostics
     tune_system
     setup_cron
     setup_firewall
+    setup_forward_sync_timer
 
     if ! systemctl is-enabled --quiet x-ui; then
         systemctl daemon-reload && systemctl enable x-ui.service
