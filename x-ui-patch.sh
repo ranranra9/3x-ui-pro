@@ -615,36 +615,21 @@ server {
 EOF
 
 # ── activate sites ────────────────────────────────────────────────────────────
-# Drop stale panel/reality vhost FILES whose name doesn't match the domains we
-# manage (leftovers from older installs). If left, they shadow the fresh vhosts
-# by server_name and mislead the detection fallback above.
-for f in /etc/nginx/sites-available/*; do
-    [[ -f "$f" ]] || continue
-    bn=$(basename "$f")
-    case "$bn" in 80.conf|00-maps.conf|"$domain"|"$reality_domain") continue;; esac
-    if grep -qE 'listen (7443|9443)' "$f" 2>/dev/null; then
-        blue "Removing stale vhost: $bn"
-        rm -f "$f"
-    fi
-done
-# Remove only managed links and obsolete 3x-ui vhosts. Preserve other
-# applications' enabled sites instead of deleting the whole directory.
+# Only manage our known links. An unknown server using our private listener
+# ports must be reviewed manually; never delete someone else's site as "stale".
 for f in /etc/nginx/sites-enabled/*; do
     [[ -e "$f" || -L "$f" ]] || continue
     bn=$(basename "$f")
-    case "$bn" in
-        default|00-maps.conf|80.conf|"$domain"|"$reality_domain")
-            rm -f -- "$f" ;;
-        *)
-            if [[ -f "$f" ]] && grep -qE 'listen (7443|9443)' "$f" 2>/dev/null; then
-                blue "Disabling obsolete 3x-ui vhost link: $bn (backed up)"
-                rm -f -- "$f"
-            else
-                blue "Preserving unrelated enabled Nginx site: $bn"
-            fi ;;
-    esac
+    case "$bn" in default|00-maps.conf|80.conf|"$domain"|"$reality_domain") continue;; esac
+    if [[ -f "$f" ]] && grep -qE 'listen[[:space:]]+(\[::\]:)?(7443|9443)([^0-9]|$)' "$f"; then
+        die "Conflicting enabled Nginx site $f uses 7443/9443. Backup: $patch_backup_dir; resolve manually."
+    fi
 done
-rm -f /etc/nginx/sites-available/default
+
+# Existing files in sites-available are preserved, including older vhosts.
+for bn in default 00-maps.conf 80.conf "$domain" "$reality_domain"; do
+    rm -f -- "/etc/nginx/sites-enabled/$bn"
+done
 ln -sf "/etc/nginx/sites-available/00-maps.conf"      /etc/nginx/sites-enabled/
 ln -sf "/etc/nginx/sites-available/${domain}"         /etc/nginx/sites-enabled/
 ln -sf "/etc/nginx/sites-available/${reality_domain}" /etc/nginx/sites-enabled/
