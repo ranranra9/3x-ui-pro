@@ -74,9 +74,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/mozaroc/3x-ui-pro/main/x-ui-
 
 ## Uninstall
 
-```bash
-bash x-ui-latest.sh -uninstall y
-```
+**In `security-hardening`, the upstream `-uninstall y` mode is intentionally disabled.** It used to remove all of `/etc/nginx` and shared packages. Back up the VPS first and use a separately reviewed removal procedure scoped to X-UI resources.
 
 ---
 
