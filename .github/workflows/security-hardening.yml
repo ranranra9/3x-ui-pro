@@ -19,6 +19,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check Bash syntax
         run: bash -n x-ui-latest.sh x-ui-patch.sh assets/xray-forward-sync.sh
+      - name: Test installer security invariants
+        run: python3 tests/test_installer_invariants.py
       - name: Test forwarding allowlist synchronization
         run: python3 tests/test_forward_sync.py
       - name: Install Nginx for routing test
