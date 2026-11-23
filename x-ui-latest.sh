@@ -62,15 +62,41 @@ INSTALL="y"
 AUTODOMAIN="n"
 CFALLOW="n"
 
-# ─── Stop & clean previous install (called from main, after domain validation) ─
-clean_previous_install() {
-    systemctl stop x-ui 2>/dev/null || true
-    rm -rf /etc/systemd/system/x-ui.service
-    rm -rf /usr/local/x-ui
-    rm -rf /etc/x-ui
-    rm -rf /etc/nginx/sites-enabled/*
-    rm -rf /etc/nginx/sites-available/*
-    rm -rf /etc/nginx/stream-enabled/*
+# Fresh-install only. Refuse to overwrite an existing 3x-ui or other web
+# applications; the existing-install workflow is x-ui-patch.sh instead.
+verify_clean_install() {
+    local entry
+    for entry in /etc/x-ui /usr/local/x-ui /etc/systemd/system/x-ui.service \
+                 /var/www/subpage /var/www/diagnostics /usr/local/lib/3x-ui-pro; do
+        if [[ -e "$entry" || -L "$entry" ]]; then
+            msg_err "Existing application data at $entry. Aborting: no files were deleted."
+            exit 1
+        fi
+    done
+    for entry in /etc/nginx/sites-enabled/* /etc/nginx/sites-available/* \
+                 /etc/nginx/stream-enabled/* /etc/nginx/conf.d/*.conf; do
+        [[ -e "$entry" || -L "$entry" ]] || continue
+        case "$entry" in
+            /etc/nginx/sites-enabled/default|/etc/nginx/sites-available/default) ;;
+            *) msg_err "Existing Nginx configuration at $entry. Aborting to protect it."; exit 1 ;;
+        esac
+    done
+    # Preserve existing website content rather than replacing it with a cover.
+    if [[ -f /var/www/html/index.html ]]; then
+        msg_err "Existing /var/www/html/index.html. Aborting to protect the website."
+        exit 1
+    fi
+}
+
+backup_nginx_before_changes() {
+    [[ -d /etc/nginx ]] || return 0
+    local backup_dir
+    backup_dir="/root/3x-ui-pro-nginx-backup-$(date +%Y%m%dT%H%M%S)-$"
+    (umask 077; mkdir -p "$backup_dir" && tar -C /etc -czf "$backup_dir/nginx.tar.gz" nginx) || {
+        msg_err "Failed to back up /etc/nginx. Aborting."
+        exit 1
+    }
+    msg_inf "Nginx backup: $backup_dir/nginx.tar.gz"
 }
 
 # ─── Port / path generators ──────────────────────────────────────────────────
@@ -1295,7 +1321,7 @@ show_results() {
 # ─────────────────────────────────────────────────────────────────────────────
 main() {
     validate_domains
-    clean_previous_install
+    verify_clean_install
     install_packages
     get_server_ip
     get_ssl_certs
@@ -1307,6 +1333,7 @@ main() {
     fi
 
     install_forward_sync
+    backup_nginx_before_changes
     configure_nginx
     configure_xui_db
     /usr/local/sbin/3x-ui-pro-sync-inbounds --sync || exit 1
