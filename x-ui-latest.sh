@@ -182,19 +182,13 @@ Pak=$(type apt &>/dev/null && echo "apt" || echo "yum")
 # UNINSTALL
 # ─────────────────────────────────────────────────────────────────────────────
 uninstall_xui() {
-    printf 'y\n' | x-ui uninstall 2>/dev/null || true
-    rm -rf /etc/x-ui/ /usr/local/x-ui/
-    rm -f  /usr/bin/x-ui
-    $Pak -y remove nginx nginx-common nginx-core nginx-full python3-certbot-nginx
-    $Pak -y purge  nginx nginx-common nginx-core nginx-full python3-certbot-nginx
-    $Pak -y autoremove
-    $Pak -y autoclean
-    rm -rf /var/www/html/ /var/www/diagnostics/ /var/www/subpage/ /etc/nginx/ /usr/share/nginx/
-    systemctl stop mtr-backend 2>/dev/null || true
-    systemctl disable mtr-backend 2>/dev/null || true
-    rm -f /etc/systemd/system/mtr-backend.service
-    rm -rf /usr/local/lib/3x-ui-pro/
-    systemctl daemon-reload 2>/dev/null || true
+    # Legacy removal recursively deleted all Nginx sites and /etc/nginx,
+    # purged shared system packages, and removed unrelated web content.
+    # Never run that from this hardened installer.
+    msg_err "Unsafe legacy -uninstall is disabled in security-hardening."
+    msg_err "It would remove unrelated Nginx configuration and system packages."
+    msg_err "Create a VPS snapshot and use a reviewed scoped removal plan instead."
+    exit 1
 }
 
 if [[ ${UNINSTALL} == *"y"* ]]; then
