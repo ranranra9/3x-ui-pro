@@ -260,7 +260,13 @@ install_packages() {
 # ─────────────────────────────────────────────────────────────────────────────
 get_ssl_certs() {
     systemctl stop nginx 2>/dev/null || true
-    fuser -k 80/tcp 80/udp 443/tcp 443/udp 2>/dev/null || true
+    # Do not kill unrelated processes on :80/:443. Certbot requires exclusive
+    # listeners; exit safely instead if another service still occupies them.
+    if ss -H -ltn '( sport = :80 or sport = :443 )' 2>/dev/null | grep -q .; then
+        msg_err "Ports 80 or 443 still in use. Refusing to kill another service."
+        systemctl start nginx 2>/dev/null || true
+        exit 1
+    fi
 
     if [[ ${AUTODOMAIN} == *"y"* ]]; then
         local resolve_ok=true
