@@ -1332,8 +1332,8 @@ main() {
         install_panel
     fi
 
-    install_forward_sync
     backup_nginx_before_changes
+    install_forward_sync
     configure_nginx
     configure_xui_db
     /usr/local/sbin/3x-ui-pro-sync-inbounds --sync || exit 1
