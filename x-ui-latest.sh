@@ -156,6 +156,7 @@ while [ "$#" -gt 0 ]; do
         -install)          INSTALL="$2";           shift 2 ;;
         -subdomain)        domain="$2";            shift 2 ;;
         -reality_domain)   reality_domain="$2";    shift 2 ;;
+        -auto_domain)      AUTODOMAIN="$2";        shift 2 ;;
         -ONLY_CF_IP_ALLOW) CFALLOW="$2";           shift 2 ;;
         -version)          PANEL_VERSION="$2";     shift 2 ;;
         -uninstall)        UNINSTALL="$2";         shift 2 ;;
@@ -211,27 +212,53 @@ IP4=$(ip route get 8.8.8.8 2>&1 | grep -Po -- 'src \K\S*')
 # ─────────────────────────────────────────────────────────────────────────────
 # DOMAIN VALIDATION
 # ─────────────────────────────────────────────────────────────────────────────
+valid_dns_hostname() {
+    local hostname="$1" label
+    local -a labels
+    [[ ${#hostname} -le 253 && "$hostname" =~ ^[a-z0-9.-]+$ ]] || return 1
+    [[ "$hostname" != .* && "$hostname" != *. && "$hostname" != *..* ]] || return 1
+    IFS='.' read -r -a labels <<< "$hostname"
+    (( ${#labels[@]} >= 2 )) || return 1
+    for label in "${labels[@]}"; do
+        [[ ${#label} -le 63 && "$label" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$ ]] || return 1
+    done
+    return 0
+}
+
 validate_domains() {
-    while true; do
-        [[ -n "$domain" ]] && break
-        echo -en "Enter available subdomain (sub.domain.tld): " && read -r domain
-    done
-    domain=$(echo "$domain" | tr -d '[:space:]')
-    SubDomain=$(echo "$domain"   | sed 's/^[^ ]* \|\..*//g')
-    MainDomain=$(echo "$domain"  | sed 's/.*\.\([^.]*\..*\)$/\1/')
-    [[ "${SubDomain}.${MainDomain}" != "${domain}" ]] && MainDomain=${domain}
+    # No reliable provider-backed auto-domain provisioner exists in this repo.
+    # Never synthesize unowned domains which can breach hoster SNI restrictions.
+    case "$AUTODOMAIN" in
+        n) ;;
+        y)
+            msg_err "-auto_domain y is not implemented: it cannot register domains or configure DNS."
+            msg_err "Use two distinct hostnames you control (-subdomain and -reality_domain)."
+            exit 1 ;;
+        *)
+            msg_err "Invalid -auto_domain option: use n (auto provisioning unsupported)."
+            exit 1 ;;
+    esac
 
-    while true; do
-        [[ -n "$reality_domain" ]] && break
-        echo -en "Enter available subdomain for REALITY (sub.domain.tld): " && read -r reality_domain
+    while [[ -z "$domain" ]]; do
+        read -r -p "Enter panel subdomain (sub.domain.tld): " domain || {
+            msg_err "Panel hostname required; specify -subdomain."
+            exit 1
+        }
     done
-    reality_domain=$(echo "$reality_domain" | tr -d '[:space:]')
-    RealitySubDomain=$(echo "$reality_domain" | sed 's/^[^ ]* \|\..*//g')
-    RealityMainDomain=$(echo "$reality_domain" | sed 's/.*\.\([^.]*\..*\)$/\1/')
-    [[ "${RealitySubDomain}.${RealityMainDomain}" != "${reality_domain}" ]] && RealityMainDomain=${reality_domain}
-
+    while [[ -z "$reality_domain" ]]; do
+        read -r -p "Enter REALITY subdomain (sub.domain.tld): " reality_domain || {
+            msg_err "REALITY hostname required; specify -reality_domain."
+            exit 1
+        }
+    done
+    domain="${domain,,}"
+    reality_domain="${reality_domain,,}"
+    if ! valid_dns_hostname "$domain" || ! valid_dns_hostname "$reality_domain"; then
+        msg_err "Invalid hostname: use fully qualified ASCII DNS names, no URLs or wildcards."
+        exit 1
+    fi
     if [[ "$domain" == "$reality_domain" ]]; then
-        msg_err "Panel domain and REALITY domain must be different! Got: ${domain}"
+        msg_err "Panel and REALITY hostnames must be different."
         exit 1
     fi
 }
@@ -264,6 +291,16 @@ get_ssl_certs() {
         msg_err "ss (iproute2) is required to safely check ACME listener ports."
         exit 1
     }
+    # Verify DNS before stopping Nginx or making any ACME requests.
+    local d resolved
+    for d in "$domain" "$reality_domain"; do
+        resolved=$(getent ahostsv4 "$d" 2>/dev/null | awk 'NR==1 {print $1}')
+        if [[ -z "$IP4" || "$resolved" != "$IP4" ]]; then
+            msg_err "DNS for $d resolves to ${resolved:-nothing}; expected $IP4."
+            msg_err "Point both domain A records to this VPS before requesting TLS certificates."
+            exit 1
+        fi
+    done
     systemctl stop nginx 2>/dev/null || true
     # Do not kill unrelated processes on :80/:443. Certbot requires exclusive
     # listeners; exit safely instead if another service still occupies them.
@@ -273,18 +310,7 @@ get_ssl_certs() {
         exit 1
     fi
 
-    if [[ ${AUTODOMAIN} == *"y"* ]]; then
-        local resolve_ok=true
-        for d in "$domain" "$reality_domain"; do
-            local a
-            a=$(getent ahostsv4 "$d" 2>/dev/null | awk 'NR==1{print $1}')
-            if [[ "$a" != "$IP4" ]]; then
-                msg_err "Auto-domain $d does not resolve to $IP4. Fix DNS and retry."
-                resolve_ok=false
-            fi
-        done
-        [[ $resolve_ok == false ]] && exit 1
-    fi
+
 
     certbot certonly --standalone --non-interactive --agree-tos \
         --register-unsafely-without-email -d "$domain"
