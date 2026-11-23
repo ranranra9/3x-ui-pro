@@ -10,7 +10,7 @@ snippet = script[begin:end]
 
 # Only function definitions and comments are extracted, not root checks or
 # installation calls. An earlier regression silently ignored -auto_domain y.
-assert '-auto_domain)      AUTODOMAIN="$2";' in script
+assert '-auto_domain)      AUTODOMAIN="$2" ;;' in script
 assert 'main() {' in script
 assert script.index("    validate_domains\n", script.index("main() {")) < script.index(
     "    verify_clean_install\n", script.index("main() {"))
