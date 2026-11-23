@@ -91,7 +91,7 @@ bash x-ui-latest.sh -uninstall y
 | `-reality_domain <domain>` | REALITY destination domain |
 | `-auto_domain y` | **Not supported:** upstream documentation claimed auto-discovery, but no DNS/domain provisioner exists; the installer now fails early |
 | `-version <version>` | Install specific 3x-ui version (e.g. `3.4.2`), default — latest |
-| `-uninstall y` | Full uninstall |
+| `-uninstall y` | **Disabled in security-hardening:** upstream uninstaller deleted all Nginx configuration and shared packages |
 
 ---
 
