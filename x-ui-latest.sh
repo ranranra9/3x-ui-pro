@@ -240,8 +240,7 @@ validate_domains() {
 # INSTALL PACKAGES
 # ─────────────────────────────────────────────────────────────────────────────
 install_packages() {
-    ufw disable 2>/dev/null || true
-
+    # Never disable an existing firewall merely to install packages.
     if [[ ${INSTALL} == *"y"* ]]; then
         local version
         version=$(grep -oP '(?<=VERSION_ID=")[0-9]+' /etc/os-release)
@@ -249,6 +248,8 @@ install_packages() {
 
         $Pak -y update
         $Pak -y install curl wget jq bash sudo nginx-full certbot python3-certbot-nginx sqlite3 ufw netcat-openbsd mtr python3 libcap2-bin
+        # ACME HTTP-01 needs public port 80; keep existing SSH/UFW rules intact.
+        ufw allow 80/tcp || { msg_err "Cannot allow HTTP-01 challenge through UFW."; exit 1; }
         systemctl daemon-reload && systemctl enable --now nginx
     fi
 
@@ -1348,7 +1349,7 @@ main() {
     install_diagnostics
     tune_system
     setup_cron
-    setup_firewall
+    setup_firewall || { msg_err "Firewall setup failed; refusing to report a successful install."; exit 1; }
     setup_forward_sync_timer
 
     if ! systemctl is-enabled --quiet x-ui; then
