@@ -5,7 +5,7 @@
 Automated installer for the [3x-ui](https://github.com/MHSanaei/3x-ui) panel with nginx, SSL, Clash subscription and network diagnostics.
 
 - Debian 12 / Ubuntu 24
-- Two distinct hostnames you control, with A records targeting the VPS (panel and REALITY)
+- Two hostnames for panel and REALITY. **No domain purchase is required** with `-auto_domains y`: derive automatic IP-based names via `cdn-one.org` (restored legacy mode).
 - Automatic SSL certificate renewal
 - VLESS+REALITY, VLESS+WebSocket, VLESS+XHTTP, Trojan+gRPC — all through port 443
 
@@ -78,7 +78,13 @@ bash <(curl -fsSL https://raw.githubusercontent.com/mozaroc/3x-ui-pro/main/x-ui-
 
 ---
 
-**Note:** supplying `-auto_domain y` does not register a domain, provision DNS or eliminate the need for hostnames. The hardened installer refuses this flag instead of quietly ignoring it. Do not use third-party hostnames for SNI without your provider's authorization.
+ 
+Example without purchasing a domain:
+```bash
+bash x-ui-latest.sh -auto_domains y
+```
+
+**Automatic mode:** `-auto_domains y` (and the legacy alias `-auto_domain y`) derives `<IP>.cdn-one.org` and `<IP-with-hyphens>.cdn-one.org`. No domain purchase or manual DNS change is needed, but the external DNS service must resolve both names to the VPS before Certbot is run. This uses a third-party domain; confirm hosting and SNI policy compliance. It is not literal domain-free TLS.
 
 ## Command-line options
 
@@ -87,7 +93,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/mozaroc/3x-ui-pro/main/x-ui-
 | `-install y` | Install |
 | `-subdomain <domain>` | Panel and subscription domain |
 | `-reality_domain <domain>` | REALITY destination domain |
-| `-auto_domain y` | **Not supported:** upstream documentation claimed auto-discovery, but no DNS/domain provisioner exists; the installer now fails early |
+| `-auto_domains y` | Derive both hostnames from the IP using `cdn-one.org` without purchasing a domain; `-auto_domain y` remains an alias |
 | `-version <version>` | Install specific 3x-ui version (e.g. `3.4.2`), default — latest |
 | `-uninstall y` | **Disabled in security-hardening:** upstream uninstaller deleted all Nginx configuration and shared packages |
 
