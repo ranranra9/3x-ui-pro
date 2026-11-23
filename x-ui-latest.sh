@@ -302,7 +302,9 @@ install_packages() {
         $Pak -y install curl wget jq bash sudo nginx-full certbot python3-certbot-nginx sqlite3 ufw netcat-openbsd mtr python3 libcap2-bin
         # ACME HTTP-01 needs public port 80; keep existing SSH/UFW rules intact.
         ufw allow 80/tcp || { msg_err "Cannot allow HTTP-01 challenge through UFW."; exit 1; }
-        systemctl daemon-reload && systemctl enable --now nginx
+        # Certbot --standalone needs port 80 free during initial issuance.
+        # Enable Nginx for boot, but start it only after certificates and vhosts exist.
+        systemctl daemon-reload && systemctl enable nginx
     fi
 
     apt-get install -yqq --no-install-recommends ca-certificates
