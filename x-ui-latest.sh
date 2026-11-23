@@ -1183,11 +1183,33 @@ setup_cron() {
 # FIREWALL
 # ─────────────────────────────────────────────────────────────────────────────
 setup_firewall() {
-    ufw disable
-    ufw allow 22/tcp
-    ufw allow 80/tcp
-    ufw allow 443/tcp
-    ufw allow 443/udp
+    local ssh_port
+    local -a ssh_ports=()
+
+    # Keep the port of the current SSH session open, including nonstandard ports.
+    if [[ -n "${SSH_CONNECTION:-}" ]]; then
+        ssh_port=$(awk '{print $4}' <<< "$SSH_CONNECTION")
+        [[ "$ssh_port" =~ ^[0-9]+$ ]] && (( ssh_port >= 1 && ssh_port <= 65535 )) && ssh_ports+=("$ssh_port")
+    fi
+
+    # Also allow every configured sshd listening port (multiple Port lines are valid).
+    if command -v sshd >/dev/null 2>&1; then
+        while read -r ssh_port; do
+            [[ "$ssh_port" =~ ^[0-9]+$ ]] && (( ssh_port >= 1 && ssh_port <= 65535 )) && ssh_ports+=("$ssh_port")
+        done < <(sshd -T 2>/dev/null | awk '$1 == "port" {print $2}')
+    fi
+
+    if (( ${#ssh_ports[@]} == 0 )); then
+        msg_err "Cannot determine SSH port; refusing to enable UFW to avoid SSH lockout."
+        return 1
+    fi
+
+    for ssh_port in "${ssh_ports[@]}"; do
+        ufw allow "${ssh_port}/tcp" || return 1
+    done
+    ufw allow 80/tcp || return 1
+    ufw allow 443/tcp || return 1
+    ufw allow 443/udp || return 1
     ufw --force enable
 }
 
