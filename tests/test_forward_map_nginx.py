@@ -18,8 +18,11 @@ with tempfile.TemporaryDirectory(prefix="xray-nginx-test-") as tmp:
     port = sock.getsockname()[1]
     sock.close()
     conf = root / "nginx.conf"
-    conf.write_text(f"""events {{}}
+    conf.write_text(f"""pid {root}/nginx.pid;
+error_log {root}/error.log notice;
+events {{}}
 http {{
+    access_log off;
     map $fwdport $xray_forward_allowed {{
         default 0;
         include {allowed};
