@@ -32,6 +32,16 @@ die()   { red "ERROR: $*" >&2; exit 1; }
 # ── ensure sqlite3 available ──────────────────────────────────────────────────
 command -v sqlite3 &>/dev/null || apt-get install -y -q sqlite3
 
+# Save a consistent DB snapshot and original Nginx config before changing
+# certificates, vhosts or enabled sites. Directory is private to root.
+patch_backup_dir="/root/3x-ui-pro-patch-backup-$(date +%Y%m%dT%H%M%S)-$"
+(umask 077; mkdir -p "$patch_backup_dir" &&
+    sqlite3 "$XUIDB" ".backup '$patch_backup_dir/x-ui.db'" &&
+    { [[ ! -d /etc/nginx ]] || tar -C /etc -czf "$patch_backup_dir/nginx.tar.gz" nginx; }
+) || die "Failed to back up the panel database / Nginx; refusing to patch."
+blue "Saved pre-patch backup: $patch_backup_dir"
+
+
 # ── read settings from DB ─────────────────────────────────────────────────────
 blue "Reading settings from x-ui.db..."
 db() { sqlite3 "$XUIDB" "$1"; }
@@ -617,9 +627,23 @@ for f in /etc/nginx/sites-available/*; do
         rm -f "$f"
     fi
 done
-# Wipe every enabled symlink and relink only what we manage, so nothing stale can
-# stay loaded and shadow the panel vhost (this was the cause of the diag 404).
-find /etc/nginx/sites-enabled -mindepth 1 -delete 2>/dev/null || true
+# Remove only managed links and obsolete 3x-ui vhosts. Preserve other
+# applications' enabled sites instead of deleting the whole directory.
+for f in /etc/nginx/sites-enabled/*; do
+    [[ -e "$f" || -L "$f" ]] || continue
+    bn=$(basename "$f")
+    case "$bn" in
+        default|00-maps.conf|80.conf|"$domain"|"$reality_domain")
+            rm -f -- "$f" ;;
+        *)
+            if [[ -f "$f" ]] && grep -qE 'listen (7443|9443)' "$f" 2>/dev/null; then
+                blue "Disabling obsolete 3x-ui vhost link: $bn (backed up)"
+                rm -f -- "$f"
+            else
+                blue "Preserving unrelated enabled Nginx site: $bn"
+            fi ;;
+    esac
+done
 rm -f /etc/nginx/sites-available/default
 ln -sf "/etc/nginx/sites-available/00-maps.conf"      /etc/nginx/sites-enabled/
 ln -sf "/etc/nginx/sites-available/${domain}"         /etc/nginx/sites-enabled/
