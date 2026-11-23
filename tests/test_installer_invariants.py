@@ -27,11 +27,11 @@ assert installer.index("    configure_xui_db\n") < installer.index(
     "    /usr/local/sbin/3x-ui-pro-sync-inbounds --sync")
 for label, port in [
     ("reality", "8443"),
-    ("ws", "\${ws_port}"),
-    ("trojan-grpc", "\${trojan_port}"),
+    ("ws", "${ws_port}"),
+    ("trojan-grpc", "${trojan_port}"),
 ]:
-    marker = f"\${{emoji_flag}} {label}','1','0','127.0.0.1','{port}'"
-    assert marker.replace("\\$", "$") in installer, f"non-loopback Xray inbound: {label}"
+    marker = f"${{emoji_flag}} {label}','1','0','127.0.0.1','{port}'"
+    assert marker in installer, f"non-loopback Xray inbound: {label}"
 
 assert "find /etc/nginx/sites-enabled -mindepth 1 -delete" not in patcher
 assert "Conflicting enabled Nginx site" in patcher
