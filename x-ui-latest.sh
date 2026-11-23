@@ -954,7 +954,7 @@ INSERT INTO "settings" ("key","value") VALUES ("datepicker",          'gregorian
 INSERT INTO "inbounds"
     ("user_id","up","down","total","remark","enable","expiry_time","listen","port","protocol","settings","stream_settings","tag","sniffing")
 VALUES (
-    '1','0','0','0','${emoji_flag} reality','1','0','','8443','vless',
+    '1','0','0','0','${emoji_flag} reality','1','0','127.0.0.1','8443','vless',
     '{
   "clients": [],
   "decryption": "none",
@@ -995,7 +995,7 @@ VALUES (
 INSERT INTO "inbounds"
     ("user_id","up","down","total","remark","enable","expiry_time","listen","port","protocol","settings","stream_settings","tag","sniffing")
 VALUES (
-    '1','0','0','0','${emoji_flag} ws','1','0','','${ws_port}','vless',
+    '1','0','0','0','${emoji_flag} ws','1','0','127.0.0.1','${ws_port}','vless',
     '{
   "clients": [],
   "decryption": "none",
@@ -1063,7 +1063,7 @@ VALUES (
 INSERT INTO "inbounds"
     ("user_id","up","down","total","remark","enable","expiry_time","listen","port","protocol","settings","stream_settings","tag","sniffing")
 VALUES (
-    '1','0','0','0','${emoji_flag} trojan-grpc','1','0','','${trojan_port}','trojan',
+    '1','0','0','0','${emoji_flag} trojan-grpc','1','0','127.0.0.1','${trojan_port}','trojan',
     '{
   "clients": [],
   "fallbacks": []
