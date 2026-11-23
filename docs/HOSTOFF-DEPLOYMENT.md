@@ -10,13 +10,19 @@
   installations, websites and unrelated Nginx virtual hosts instead of
   deleting them. Use `x-ui-patch.sh` for an intentional update of an existing
   setup, after a snapshot.
-- The upstream README previously advertised `-auto_domain y`, but the source
-  did not implement domain discovery or DNS provisioning. This mode now fails
-  early instead of silently prompting. It **cannot install domainlessly**.
-- Two **different hostnames you control**, such as
-  `panel.example.com` and `edge.example.com`. Both must resolve to the
-  VPS IPv4 address. The current installer uses **two Let's Encrypt standalone
-  HTTP-01 certificates**, and does not support a no-domain install.
+- **No domain purchase needed** in legacy automatic mode: run the reviewed
+  installer with `-auto_domains y` (also supports `-auto_domain y`). It derives
+  two DNS names from the IPv4 address:
+  `<IP>.cdn-one.org` (panel) and `<IP-with-hyphens>.cdn-one.org` (REALITY).
+  This is the original upstream behavior removed on 2026-08-06 and restored
+  in the hardened branch. The names MUST resolve to the VPS IPv4, checked
+  before Certbot is called. External DNS and certificate service availability
+  are prerequisites; they cannot be guaranteed offline.
+- The `cdn-one.org` domain is operated by a third party. **Confirm this scheme
+  and its SNI meet HOSTOFF policy before deploying**; the earlier HOSTOFF
+  suspension makes this a real concern. If prohibited, do not proceed.
+- You may alternatively provide two distinct hostnames you control with
+  `-subdomain` and `-reality_domain`. This is not required in auto mode.
 - Inbound TCP/80 (certificate validation), TCP/443 and UDP/443 where needed;
   SSH must remain reachable on its existing port.
 - Confirm the hoster's rules for REALITY/SNI and do not use third-party
@@ -25,8 +31,10 @@
 ## Before installing (do not skip)
 
 1. Take a VPS snapshot using the hosting dashboard.
-2. Verify addresses: `getent ahostsv4 panel.example.com` and
-   `getent ahostsv4 edge.example.com`. Compare the A records to the VPS.
+2. In auto mode, determine your IPv4 and check both generated names, e.g.
+   `getent ahostsv4 203.0.113.27.cdn-one.org` and
+   `getent ahostsv4 203-0-113-27.cdn-one.org` (replace the example IP).
+   Both must resolve to the VPS; if either does not, **do not install**.
 3. Record `sudo ss -lntup`, `sudo ufw status verbose`, and
    `sudo sshd -T | grep '^port '`. Keep a **second SSH session open** and
    test reconnection before enabling or changing UFW.
@@ -43,7 +51,9 @@ python3 tests/test_forward_sync.py
 python3 tests/test_forward_map_nginx.py  # requires nginx installed
 ```
 
-After these pass, follow the installer prompts with your own two hostnames.
+After these pass, run `bash x-ui-latest.sh -auto_domains y` for the historical
+IP-based DNS mode, provided HOSTOFF allows it. The script will abort if DNS
+is not correctly resolving; two separately owned hostnames are not required.
 The scripts currently fetch support assets from the `security-hardening`
 branch by default. For a **reproducible installation**, set `GITHUB_RAW`
 to the reviewed immutable commit's raw-content URL before executing the
