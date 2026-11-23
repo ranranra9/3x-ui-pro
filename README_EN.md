@@ -5,7 +5,7 @@
 Automated installer for the [3x-ui](https://github.com/MHSanaei/3x-ui) panel with nginx, SSL, Clash subscription and network diagnostics.
 
 - Debian 12 / Ubuntu 24
-- Two domains or subdomains (one for the panel, one for REALITY)
+- Two distinct hostnames you control, with A records targeting the VPS (panel and REALITY)
 - Automatic SSL certificate renewal
 - VLESS+REALITY, VLESS+WebSocket, VLESS+XHTTP, Trojan+gRPC — all through port 443
 
@@ -80,6 +80,8 @@ bash x-ui-latest.sh -uninstall y
 
 ---
 
+**Note:** supplying `-auto_domain y` does not register a domain, provision DNS or eliminate the need for hostnames. The hardened installer refuses this flag instead of quietly ignoring it. Do not use third-party hostnames for SNI without your provider's authorization.
+
 ## Command-line options
 
 | Option | Description |
@@ -87,6 +89,7 @@ bash x-ui-latest.sh -uninstall y
 | `-install y` | Install |
 | `-subdomain <domain>` | Panel and subscription domain |
 | `-reality_domain <domain>` | REALITY destination domain |
+| `-auto_domain y` | **Not supported:** upstream documentation claimed auto-discovery, but no DNS/domain provisioner exists; the installer now fails early |
 | `-version <version>` | Install specific 3x-ui version (e.g. `3.4.2`), default — latest |
 | `-uninstall y` | Full uninstall |
 
