@@ -10,6 +10,9 @@
   installations, websites and unrelated Nginx virtual hosts instead of
   deleting them. Use `x-ui-patch.sh` for an intentional update of an existing
   setup, after a snapshot.
+- The upstream README previously advertised `-auto_domain y`, but the source
+  did not implement domain discovery or DNS provisioning. This mode now fails
+  early instead of silently prompting. It **cannot install domainlessly**.
 - Two **different hostnames you control**, such as
   `panel.example.com` and `edge.example.com`. Both must resolve to the
   VPS IPv4 address. The current installer uses **two Let's Encrypt standalone
