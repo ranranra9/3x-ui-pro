@@ -260,6 +260,10 @@ install_packages() {
 # SSL CERTIFICATES
 # ─────────────────────────────────────────────────────────────────────────────
 get_ssl_certs() {
+    command -v ss >/dev/null 2>&1 || {
+        msg_err "ss (iproute2) is required to safely check ACME listener ports."
+        exit 1
+    }
     systemctl stop nginx 2>/dev/null || true
     # Do not kill unrelated processes on :80/:443. Certbot requires exclusive
     # listeners; exit safely instead if another service still occupies them.
