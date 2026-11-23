@@ -154,7 +154,7 @@ mtr_backend_port=$(make_port)
 while (( $# > 0 )); do
     key="$1"
     case "$key" in
-        -install|-subdomain|-reality_domain|-auto_domain|-ONLY_CF_IP_ALLOW|-version|-uninstall)
+        -install|-subdomain|-reality_domain|-auto_domain|-auto_domains|-ONLY_CF_IP_ALLOW|-version|-uninstall)
             if (( $# < 2 )) || [[ -z "$2" || "$2" == -* ]]; then
                 msg_err "Missing value for $key."
                 exit 2
@@ -163,7 +163,7 @@ while (( $# > 0 )); do
                 -install)          INSTALL="$2" ;;
                 -subdomain)        domain="$2" ;;
                 -reality_domain)   reality_domain="$2" ;;
-                -auto_domain)      AUTODOMAIN="$2" ;;
+                -auto_domain|-auto_domains) AUTODOMAIN="$2" ;;
                 -ONLY_CF_IP_ALLOW) CFALLOW="$2" ;;
                 -version)          PANEL_VERSION="$2" ;;
                 -uninstall)        UNINSTALL="$2" ;;
@@ -231,16 +231,36 @@ valid_dns_hostname() {
 }
 
 validate_domains() {
-    # No reliable provider-backed auto-domain provisioner exists in this repo.
-    # Never synthesize unowned domains which can breach hoster SNI restrictions.
+    # Restore the original automatic DNS mechanism removed upstream on
+    # 2026-08-06 (commit 18a2e010). This generates names under cdn-one.org;
+    # it does not register, purchase or configure DNS records.
+    # HOSTOFF's rules for third-party hostnames/SNI still apply.
     case "$AUTODOMAIN" in
         n) ;;
         y)
-            msg_err "-auto_domain y is not implemented: it cannot register domains or configure DNS."
-            msg_err "Use two distinct hostnames you control (-subdomain and -reality_domain)."
-            exit 1 ;;
+            local octet
+            local -a octets
+            if [[ ! "${IP4:-}" =~ ^[0-9]+(\.[0-9]+){3}$ ]]; then
+                msg_err "Cannot determine a valid public IPv4 for automatic DNS naming."
+                exit 1
+            fi
+            IFS='.' read -r -a octets <<< "$IP4"
+            if (( ${#octets[@]} != 4 )); then
+                msg_err "Invalid IPv4 address for automatic DNS: $IP4"
+                exit 1
+            fi
+            for octet in "${octets[@]}"; do
+                if [[ ${#octet} -gt 3 ]] || (( 10#$octet > 255 )); then
+                    msg_err "Invalid IPv4 address for automatic DNS: $IP4"
+                    exit 1
+                fi
+            done
+            domain="${IP4}.cdn-one.org"
+            reality_domain="${IP4//./-}.cdn-one.org"
+            msg_inf "Automatic DNS names: $domain (panel), $reality_domain (REALITY)"
+            ;;
         *)
-            msg_err "Invalid -auto_domain option: use n (auto provisioning unsupported)."
+            msg_err "Invalid -auto_domain(s) value: use y or n."
             exit 1 ;;
     esac
 
