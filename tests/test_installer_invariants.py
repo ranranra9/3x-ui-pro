@@ -18,7 +18,9 @@ for name, source in (("installer", installer), ("patcher", patcher)):
 assert "rm -rf /etc/nginx/" not in installer
 assert "rm -rf /etc/x-ui" not in installer
 assert 'msg_err "Unsafe legacy -uninstall is disabled in security-hardening."' in installer
-assert '-auto_domain)      AUTODOMAIN="$2" ;;' in installer
+assert '-auto_domain|-auto_domains) AUTODOMAIN="$2" ;;'
+assert 'domain="${IP4}.cdn-one.org"' in installer
+assert 'reality_domain="${IP4//./-}.cdn-one.org"' in installer in installer
 assert 'Invalid hostname: use fully qualified ASCII DNS names' in installer
 assert installer.index("    # Verify DNS before stopping Nginx") < installer.index("    systemctl stop nginx 2>/dev/null || true")
 assert "clean_previous_install" not in installer
