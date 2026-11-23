@@ -151,16 +151,27 @@ diag_token=$(gen_random_string 16)
 mtr_backend_port=$(make_port)
 
 # ─── Argument parsing ────────────────────────────────────────────────────────
-while [ "$#" -gt 0 ]; do
-    case "$1" in
-        -install)          INSTALL="$2";           shift 2 ;;
-        -subdomain)        domain="$2";            shift 2 ;;
-        -reality_domain)   reality_domain="$2";    shift 2 ;;
-        -auto_domain)      AUTODOMAIN="$2";        shift 2 ;;
-        -ONLY_CF_IP_ALLOW) CFALLOW="$2";           shift 2 ;;
-        -version)          PANEL_VERSION="$2";     shift 2 ;;
-        -uninstall)        UNINSTALL="$2";         shift 2 ;;
-        *)                 shift 1 ;;
+while (( $# > 0 )); do
+    key="$1"
+    case "$key" in
+        -install|-subdomain|-reality_domain|-auto_domain|-ONLY_CF_IP_ALLOW|-version|-uninstall)
+            if (( $# < 2 )) || [[ -z "$2" || "$2" == -* ]]; then
+                msg_err "Missing value for $key."
+                exit 2
+            fi
+            case "$key" in
+                -install)          INSTALL="$2" ;;
+                -subdomain)        domain="$2" ;;
+                -reality_domain)   reality_domain="$2" ;;
+                -auto_domain)      AUTODOMAIN="$2" ;;
+                -ONLY_CF_IP_ALLOW) CFALLOW="$2" ;;
+                -version)          PANEL_VERSION="$2" ;;
+                -uninstall)        UNINSTALL="$2" ;;
+            esac
+            shift 2 ;;
+        *)
+            msg_err "Unknown option: $key"
+            exit 2 ;;
     esac
 done
 
